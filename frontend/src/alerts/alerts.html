@@ -1,0 +1,67 @@
+<div class="flex flex-wrap items-end justify-between gap-3">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight">Notification centre</h1>
+    <p class="mt-1 text-sm text-stone-400">
+      Milestone reminders, over-fermentation warnings, temperature excursions and culture feeds.
+    </p>
+  </div>
+
+  <div class="flex flex-wrap gap-2">
+    <button type="button" class="btn-secondary" (click)="toggleAcknowledged()">
+      {{ showAcknowledged() ? 'Open only' : 'Show dismissed' }}
+    </button>
+    @if (openCount() > 0) {
+      <button type="button" class="btn-primary" [disabled]="busy()" (click)="acknowledgeAll()">
+        Dismiss all
+      </button>
+    }
+  </div>
+</div>
+
+@if (loading()) {
+  <p class="mt-8 text-sm text-stone-400">Loading…</p>
+} @else if (alerts().length === 0) {
+  <div class="panel mt-5 text-sm text-stone-400">
+    Nothing needs your attention. The scheduler re-checks every batch and culture every 30 minutes.
+  </div>
+} @else {
+  <ul class="mt-5 space-y-2">
+    @for (alert of alerts(); track alert.id) {
+      <li class="panel flex items-start gap-4" [class.opacity-50]="alert.acknowledgedAt">
+        <span class="mt-0.5 text-lg" aria-hidden="true">{{ alertIcon[alert.alertType] }}</span>
+
+        <div class="min-w-0 grow">
+          <p class="text-sm">{{ alert.message }}</p>
+
+          <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-stone-500">
+            <span class="chip" [class]="severityClass[alert.severity]">{{ humanise(alert.severity) }}</span>
+            <span class="chip bg-stone-800 text-stone-400">{{ humanise(alert.alertType) }}</span>
+            <span>due {{ alert.dueAt | date: 'd MMM yyyy, HH:mm' }}</span>
+            @if (alert.batchId) {
+              <a [routerLink]="['/batches', alert.batchId]" class="text-amber-400 hover:underline">
+                {{ alert.batchCode }}
+              </a>
+            }
+            @if (alert.cultureName) {
+              <a routerLink="/cultures" class="text-amber-400 hover:underline">{{ alert.cultureName }}</a>
+            }
+            @if (alert.acknowledgedAt) {
+              <span>· dismissed {{ alert.acknowledgedAt | date: 'd MMM' }}</span>
+            }
+          </div>
+        </div>
+
+        <div class="flex shrink-0 flex-col gap-1">
+          @if (!alert.acknowledgedAt) {
+            <button type="button" class="btn-secondary text-xs" [disabled]="busy()" (click)="acknowledge(alert)">
+              Dismiss
+            </button>
+          }
+          <button type="button" class="btn-ghost text-xs" [disabled]="busy()" (click)="remove(alert)">
+            Delete
+          </button>
+        </div>
+      </li>
+    }
+  </ul>
+}

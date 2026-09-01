@@ -1,0 +1,177 @@
+<div class="flex flex-wrap items-end justify-between gap-3">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight">Dashboard</h1>
+    <p class="mt-1 text-sm text-stone-400">Everything fermenting right now, and what needs your attention.</p>
+  </div>
+
+  <a routerLink="/batches" class="btn-primary">Start a batch</a>
+</div>
+
+@if (loading()) {
+  <p class="mt-8 text-sm text-stone-400">Loading…</p>
+} @else if (summary(); as data) {
+
+  <!-- Headline numbers -->
+  <section class="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label="Summary">
+    <div class="panel">
+      <p class="panel-title">Active</p>
+      <p class="mt-1 text-3xl font-semibold text-amber-400">{{ data.activeBatchCount }}</p>
+      <p class="text-xs text-stone-500">batches fermenting</p>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Planned</p>
+      <p class="mt-1 text-3xl font-semibold">{{ data.plannedBatchCount }}</p>
+      <p class="text-xs text-stone-500">queued up</p>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Completed</p>
+      <p class="mt-1 text-3xl font-semibold">{{ data.completedBatchCount }}</p>
+      <p class="text-xs text-stone-500">all time</p>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Cultures</p>
+      <p class="mt-1 text-3xl font-semibold">{{ data.activeCultureCount }}</p>
+      <p class="text-xs text-stone-500">alive in the library</p>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Average rating</p>
+      <p class="mt-1 text-3xl font-semibold">
+        {{ data.averageRating ? (data.averageRating | number: '1.1-1') : '—' }}
+        <span class="text-base text-stone-500">/ 5</span>
+      </p>
+      <p class="text-xs text-stone-500">across rated batches</p>
+    </div>
+  </section>
+
+  <!-- Over-fermentation and drift warnings -->
+  @if (data.attentionBatches.length > 0) {
+    <section class="mt-6" aria-label="Batches needing attention">
+      <h2 class="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-orange-400">
+        <span aria-hidden="true">⚠</span> Needs attention
+      </h2>
+      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        @for (batch of data.attentionBatches; track batch.id) {
+          <app-batch-card [batch]="batch" />
+        }
+      </div>
+    </section>
+  }
+
+  <div class="mt-6 grid gap-4 lg:grid-cols-3">
+
+    <!-- Milestones -->
+    <section class="panel lg:col-span-2" aria-label="Upcoming milestones">
+      <h2 class="panel-title">Up next</h2>
+
+      @if (nextMilestones().length === 0) {
+        <p class="mt-3 text-sm text-stone-500">Nothing scheduled. Start a batch to see milestones here.</p>
+      } @else {
+        <ul class="mt-3 divide-y divide-stone-800">
+          @for (milestone of nextMilestones(); track milestone.batchId + milestone.title) {
+            <li class="flex items-center gap-3 py-2.5">
+              <span class="chip"
+                    [class]="milestone.daysRemaining < 0 ? 'bg-red-950 text-red-300' : 'bg-stone-800 text-stone-300'">
+                {{ relativeDays(milestone.daysRemaining) }}
+              </span>
+              <div class="min-w-0 grow">
+                <p class="truncate text-sm font-medium">{{ milestone.title }}</p>
+                <p class="truncate text-xs text-stone-500">{{ milestone.batchCode }} · {{ milestone.batchName }}</p>
+              </div>
+              <a [routerLink]="['/batches', milestone.batchId]" class="btn-ghost shrink-0 text-xs">Open</a>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <!-- Distribution -->
+    <section class="panel" aria-label="Batches per ferment style">
+      <h2 class="panel-title">Styles</h2>
+      @if (data.batchesPerFermentType.length === 0) {
+        <p class="mt-3 text-sm text-stone-500">No batches yet.</p>
+      } @else {
+        <app-chart [option]="distributionOption()"
+                   [height]="260"
+                   ariaLabel="Doughnut chart of batches per ferment style" />
+      }
+    </section>
+  </div>
+
+  <!-- Active batches -->
+  <section class="mt-6" aria-label="Active batches">
+    <div class="mb-3 flex items-center justify-between">
+      <h2 class="text-sm font-semibold uppercase tracking-wider text-stone-400">In progress</h2>
+      <a routerLink="/batches" class="text-xs text-amber-400 hover:underline">See all batches</a>
+    </div>
+
+    @if (data.activeBatches.length === 0) {
+      <div class="panel text-sm text-stone-400">
+        Nothing fermenting. <a routerLink="/recipes" class="text-amber-400 hover:underline">Pick a recipe</a> to start.
+      </div>
+    } @else {
+      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        @for (batch of data.activeBatches; track batch.id) {
+          <app-batch-card [batch]="batch" />
+        }
+      </div>
+    }
+  </section>
+
+  <div class="mt-6 grid gap-4 lg:grid-cols-2">
+
+    <!-- Alerts -->
+    <section class="panel" aria-label="Open alerts">
+      <div class="flex items-center justify-between">
+        <h2 class="panel-title">Alerts</h2>
+        <a routerLink="/alerts" class="text-xs text-amber-400 hover:underline">Notification centre</a>
+      </div>
+
+      @if (data.openAlerts.length === 0) {
+        <p class="mt-3 text-sm text-stone-500">Nothing to worry about.</p>
+      } @else {
+        <ul class="mt-3 divide-y divide-stone-800">
+          @for (alert of data.openAlerts.slice(0, 6); track alert.id) {
+            <li class="flex items-start gap-3 py-2.5">
+              <span aria-hidden="true">{{ alertIcon[alert.alertType] }}</span>
+              <div class="min-w-0 grow">
+                <p class="text-sm">{{ alert.message }}</p>
+                <span class="chip mt-1" [class]="severityClass[alert.severity]">
+                  {{ humanise(alert.severity) }}
+                </span>
+              </div>
+              <button type="button"
+                      class="btn-ghost shrink-0 text-xs"
+                      [attr.aria-label]="'Dismiss alert: ' + alert.message"
+                      (click)="acknowledge(alert.id)">
+                Dismiss
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <!-- Activity -->
+    <section class="panel" aria-label="Recent activity">
+      <h2 class="panel-title">Recent activity</h2>
+
+      @if (data.recentEvents.length === 0) {
+        <p class="mt-3 text-sm text-stone-500">No journal entries yet.</p>
+      } @else {
+        <ul class="mt-3 divide-y divide-stone-800">
+          @for (event of data.recentEvents; track event.id) {
+            <li class="flex items-start gap-3 py-2.5">
+              <span aria-hidden="true">{{ eventIcon[event.eventType] }}</span>
+              <div class="min-w-0 grow">
+                <p class="truncate text-sm font-medium">{{ event.title }}</p>
+                <p class="text-xs text-stone-500">
+                  {{ event.batchCode }} · {{ event.occurredAt | date: 'd MMM, HH:mm' }}
+                </p>
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  </div>
+}

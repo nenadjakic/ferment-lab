@@ -1,0 +1,288 @@
+@if (loading()) {
+  <p class="text-sm text-stone-400">Loading…</p>
+} @else if (detail(); as data) {
+
+  <!-- Header -->
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div class="min-w-0">
+      <a routerLink="/batches" class="text-xs text-amber-400 hover:underline">&larr; All batches</a>
+      <h1 class="mt-1 text-2xl font-semibold tracking-tight">{{ data.batch.name }}</h1>
+      <p class="mt-1 text-sm text-stone-400">
+        {{ data.batch.code }} · {{ data.batch.fermentType.name }}
+        @if (data.batch.recipeName) { · {{ data.batch.recipeName }} }
+        @if (data.batch.cultureName) { · {{ data.batch.cultureName }} }
+      </p>
+      <div class="mt-2 flex flex-wrap items-center gap-2">
+        <span class="chip" [class]="statusClass[data.batch.status]">{{ humanise(data.batch.status) }}</span>
+        <span class="chip" [class]="healthClass[data.batch.health]">{{ healthLabel[data.batch.health] }}</span>
+        @if (data.batch.rating) {
+          <span class="chip bg-stone-800 text-amber-300">{{ data.batch.rating }}/5</span>
+        }
+      </div>
+      @if (data.batch.healthReason) {
+        <p class="mt-2 text-sm text-orange-300">{{ data.batch.healthReason }}</p>
+      }
+    </div>
+
+    <div class="flex flex-wrap gap-2">
+      @if (data.batch.status === 'ACTIVE') {
+        <button type="button" class="btn-secondary" [disabled]="busy()" (click)="changeStatus('PAUSED')">Pause</button>
+      }
+      @if (data.batch.status === 'PAUSED') {
+        <button type="button" class="btn-secondary" [disabled]="busy()" (click)="changeStatus('ACTIVE')">Resume</button>
+      }
+      @if (data.batch.status === 'PLANNED' || data.batch.status === 'ACTIVE' || data.batch.status === 'PAUSED') {
+        <button type="button" class="btn-primary" [disabled]="busy()" (click)="completeOpen.set(true)">Complete</button>
+        <button type="button" class="btn-danger" [disabled]="busy()" (click)="changeStatus('DISCARDED')">Discard</button>
+      }
+      <button type="button" class="btn-ghost" [disabled]="busy()" (click)="deleteBatch()">Delete</button>
+    </div>
+  </div>
+
+  <!-- Vital statistics -->
+  <section class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6" aria-label="Batch facts">
+    <div class="panel">
+      <p class="panel-title">Day</p>
+      <p class="mt-1 text-2xl font-semibold text-amber-400">{{ data.batch.dayCount }}</p>
+      <p class="text-xs text-stone-500">of {{ data.batch.plannedDurationDays }}</p>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Started</p>
+      <p class="mt-1 text-sm font-medium">{{ data.batch.startedOn | date: 'd MMM yyyy' }}</p>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Planned finish</p>
+      <p class="mt-1 text-sm font-medium" [class.text-red-400]="data.batch.overdue">
+        {{ data.batch.expectedEndOn | date: 'd MMM yyyy' }}
+      </p>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Container</p>
+      <p class="mt-1 text-sm font-medium">{{ data.batch.container || '—' }}</p>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Size</p>
+      <p class="mt-1 text-sm font-medium">
+        @if (data.batch.batchSize) {
+          {{ data.batch.batchSize | number: '1.0-3' }} {{ data.batch.batchSizeUnit }}
+        } @else { — }
+      </p>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Readings</p>
+      <p class="mt-1 text-2xl font-semibold">{{ data.measurementCount }}</p>
+    </div>
+  </section>
+
+  <!-- Alerts on this batch -->
+  @if (data.alerts.length > 0) {
+    <section class="panel mt-4" aria-label="Batch alerts">
+      <h2 class="panel-title">Alerts</h2>
+      <ul class="mt-3 divide-y divide-stone-800">
+        @for (alert of data.alerts; track alert.id) {
+          <li class="flex items-start gap-3 py-2.5" [class.opacity-50]="alert.acknowledgedAt">
+            <span aria-hidden="true">{{ alertIcon[alert.alertType] }}</span>
+            <div class="min-w-0 grow">
+              <p class="text-sm">{{ alert.message }}</p>
+              <p class="mt-1 flex items-center gap-2 text-xs text-stone-500">
+                <span class="chip" [class]="severityClass[alert.severity]">{{ humanise(alert.severity) }}</span>
+                {{ alert.dueAt | date: 'd MMM, HH:mm' }}
+                @if (alert.acknowledgedAt) { · dismissed }
+              </p>
+            </div>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  <!-- Charts -->
+  <section class="mt-4" aria-label="Measurement charts">
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-stone-400">Charts</h2>
+
+    @if (chartOptions().length === 0) {
+      <div class="panel text-sm text-stone-400">
+        Log at least two readings of a metric to see its curve.
+      </div>
+    } @else {
+      <div class="grid gap-3 lg:grid-cols-2">
+        @for (chart of chartOptions(); track chart.series.metric) {
+          <div class="panel">
+            <div class="mb-1 flex items-baseline justify-between">
+              <h3 class="text-sm font-medium">{{ metricLabel[chart.series.metric] }}</h3>
+              <span class="text-xs text-stone-500">{{ chart.series.unit }}</span>
+            </div>
+            <app-chart [option]="chart.option"
+                       [height]="240"
+                       [ariaLabel]="metricLabel[chart.series.metric] + ' over time'" />
+          </div>
+        }
+      </div>
+    }
+  </section>
+
+  <div class="mt-4 grid gap-4 lg:grid-cols-2">
+
+    <!-- Timeline -->
+    <section class="panel" aria-label="Stage timeline">
+      <h2 class="panel-title">Timeline</h2>
+
+      @if (data.stages.length === 0) {
+        <p class="mt-3 text-sm text-stone-500">This batch has no stages.</p>
+      } @else {
+        <ol class="mt-3 space-y-3">
+          @for (stage of data.stages; track stage.id) {
+            <li class="rounded-lg border border-stone-800 p-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-sm font-medium">{{ stage.position }}. {{ stage.name }}</p>
+                  <p class="mt-0.5 text-xs text-stone-500">
+                    {{ humanise(stage.phase) }}
+                    @if (stage.plannedDurationDays > 0) { · {{ stage.plannedDurationDays }} d }
+                    @if (stage.dueAt && !stage.completedAt) { · due {{ stage.dueAt | date: 'd MMM' }} }
+                  </p>
+                </div>
+                <span class="chip shrink-0" [class]="stageStatusClass[stage.status]">
+                  {{ humanise(stage.status) }}
+                </span>
+              </div>
+
+              @if (stage.instruction) {
+                <p class="mt-2 text-xs leading-relaxed text-stone-400">{{ stage.instruction }}</p>
+              }
+
+              @if (stage.status === 'PENDING') {
+                <button type="button" class="btn-secondary mt-2 text-xs" [disabled]="busy()"
+                        (click)="startStage(stage.id)">Start</button>
+              } @else if (stage.status === 'ACTIVE' || stage.status === 'OVERDUE') {
+                <button type="button" class="btn-primary mt-2 text-xs" [disabled]="busy()"
+                        (click)="completeStage(stage.id)">Mark complete</button>
+              }
+            </li>
+          }
+        </ol>
+      }
+    </section>
+
+    <div class="space-y-4">
+
+      <!-- Log a reading -->
+      <section class="panel" aria-label="Log a reading">
+        <h2 class="panel-title">Log a reading</h2>
+
+        <form class="mt-3 grid gap-3 sm:grid-cols-2" (ngSubmit)="addMeasurement(); $event.preventDefault()">
+          <div>
+            <label class="field-label" for="m-metric">Metric</label>
+            <select id="m-metric" class="field" name="metric" [(ngModel)]="measurementMetric">
+              @for (metric of metricTypes; track metric) {
+                <option [value]="metric">{{ metricLabel[metric] }} ({{ metricUnit[metric] }})</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="m-value">Value</label>
+            <input id="m-value" type="number" step="0.0001" class="field" name="value"
+                   [(ngModel)]="measurementValue" required>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="field-label" for="m-note">Note</label>
+            <input id="m-note" class="field" name="note" [(ngModel)]="measurementNote" maxlength="500"
+                   placeholder="Optional">
+          </div>
+          <div class="sm:col-span-2">
+            <button type="submit" class="btn-primary w-full" [disabled]="busy()">Log reading</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Add a journal entry -->
+      <section class="panel" aria-label="Add a journal entry">
+        <h2 class="panel-title">Add a journal entry</h2>
+
+        <form class="mt-3 grid gap-3" (ngSubmit)="addEvent(); $event.preventDefault()">
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label class="field-label" for="e-type">Type</label>
+              <select id="e-type" class="field" name="eventType" [(ngModel)]="eventType">
+                @for (type of eventTypes; track type) {
+                  <option [value]="type">{{ humanise(type) }}</option>
+                }
+              </select>
+            </div>
+            <div>
+              <label class="field-label" for="e-title">Title</label>
+              <input id="e-title" class="field" name="title" [(ngModel)]="eventTitle" maxlength="150" required>
+            </div>
+          </div>
+          <div>
+            <label class="field-label" for="e-desc">Description</label>
+            <textarea id="e-desc" class="field" rows="2" name="description"
+                      [(ngModel)]="eventDescription" maxlength="2000"></textarea>
+          </div>
+          <button type="submit" class="btn-secondary" [disabled]="busy()">Add entry</button>
+        </form>
+      </section>
+    </div>
+  </div>
+
+  <!-- Journal -->
+  <section class="panel mt-4" aria-label="Journal">
+    <h2 class="panel-title">Journal</h2>
+
+    @if (data.events.length === 0) {
+      <p class="mt-3 text-sm text-stone-500">Nothing recorded yet.</p>
+    } @else {
+      <ul class="mt-3 divide-y divide-stone-800">
+        @for (event of data.events; track event.id) {
+          <li class="flex items-start gap-3 py-3">
+            <span class="mt-0.5" aria-hidden="true">{{ eventIcon[event.eventType] }}</span>
+            <div class="min-w-0 grow">
+              <p class="text-sm font-medium">{{ event.title }}</p>
+              @if (event.description) {
+                <p class="mt-1 text-sm text-stone-400">{{ event.description }}</p>
+              }
+              <p class="mt-1 text-xs text-stone-500">{{ event.occurredAt | date: 'd MMM yyyy, HH:mm' }}</p>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
+  <!-- Complete-batch modal -->
+  @if (completeOpen()) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+         role="dialog" aria-modal="true" aria-labelledby="complete-title">
+      <div class="w-full max-w-md rounded-xl border border-stone-800 bg-stone-900 p-5">
+        <h2 id="complete-title" class="text-lg font-semibold">Complete {{ data.batch.code }}</h2>
+
+        <form class="mt-4 grid gap-3" (ngSubmit)="complete(); $event.preventDefault()">
+          <div>
+            <label class="field-label" for="c-outcome">Outcome</label>
+            <select id="c-outcome" class="field" name="outcome" [(ngModel)]="completeOutcome">
+              <option value="EXCELLENT">Excellent</option>
+              <option value="GOOD">Good</option>
+              <option value="ACCEPTABLE">Acceptable</option>
+              <option value="POOR">Poor</option>
+              <option value="FAILED">Failed</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="c-rating">Rating (1-5)</label>
+            <input id="c-rating" type="number" min="1" max="5" class="field" name="rating"
+                   [(ngModel)]="completeRating">
+          </div>
+          <div>
+            <label class="field-label" for="c-notes">Notes</label>
+            <textarea id="c-notes" class="field" rows="3" name="notes" [(ngModel)]="completeNotes"
+                      maxlength="2000"></textarea>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button type="button" class="btn-secondary" (click)="completeOpen.set(false)">Cancel</button>
+            <button type="submit" class="btn-primary" [disabled]="busy()">Complete batch</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+}

@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+/* Design tokens shared by every surface. */
+@theme {
+  --color-lab-bg: oklch(0.16 0.008 60);
+  --color-lab-panel: oklch(0.21 0.01 60);
+  --color-lab-line: oklch(0.31 0.012 60);
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    background-color: var(--color-lab-bg);
+  }
+
+  /* Visible focus ring everywhere, so keyboard navigation is never lost. */
+  :focus-visible {
+    outline: 2px solid oklch(0.75 0.16 70);
+    outline-offset: 2px;
+  }
+}
+
+/*
+ * Tailwind v4 only lets `@apply` reference real utilities, not other component classes, so each
+ * button variant repeats the shared base rather than composing a `.btn` class.
+ */
+@layer components {
+  .panel {
+    @apply rounded-xl border border-stone-800 bg-stone-900/60 p-5;
+  }
+
+  .panel-title {
+    @apply text-xs font-semibold uppercase tracking-wider text-stone-400;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium
+           transition-colors disabled:cursor-not-allowed disabled:opacity-50
+           bg-amber-500 text-stone-950 hover:bg-amber-400;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium
+           transition-colors disabled:cursor-not-allowed disabled:opacity-50
+           border border-stone-700 bg-stone-800 text-stone-100 hover:bg-stone-700;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium
+           transition-colors disabled:cursor-not-allowed disabled:opacity-50
+           text-stone-300 hover:bg-stone-800 hover:text-stone-100;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium
+           transition-colors disabled:cursor-not-allowed disabled:opacity-50
+           border border-red-900 bg-red-950 text-red-200 hover:bg-red-900;
+  }
+
+  .field {
+    @apply w-full rounded-lg border border-stone-700 bg-stone-950/60 px-3 py-2 text-sm text-stone-100
+           placeholder:text-stone-500 focus:border-amber-500 focus:outline-none;
+  }
+
+  .field-label {
+    @apply mb-1.5 block text-xs font-medium text-stone-400;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  .table-base {
+    @apply w-full border-collapse text-sm;
+  }
+
+  .table-base th {
+    @apply border-b border-stone-800 px-3 py-2 text-left text-xs font-semibold uppercase
+           tracking-wider text-stone-400;
+  }
+
+  .table-base td {
+    @apply border-b border-stone-800/60 px-3 py-2.5 text-stone-200;
+  }
+}

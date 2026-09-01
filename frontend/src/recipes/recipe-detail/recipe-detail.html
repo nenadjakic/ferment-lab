@@ -1,0 +1,107 @@
+@if (loading()) {
+  <p class="text-sm text-stone-400">Loading…</p>
+} @else if (detail(); as data) {
+
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div class="min-w-0">
+      <a routerLink="/recipes" class="text-xs text-amber-400 hover:underline">&larr; All recipes</a>
+      <h1 class="mt-1 text-2xl font-semibold tracking-tight">{{ data.recipe.name }}</h1>
+      <p class="mt-1 text-sm text-stone-400">
+        {{ data.recipe.fermentType.name }} · {{ humanise(data.recipe.difficulty) }} ·
+        {{ data.recipe.totalDurationDays }} days
+        @if (data.recipe.source) { · {{ data.recipe.source }} }
+      </p>
+    </div>
+
+    <button type="button" class="btn-primary" (click)="startOpen.set(true)">Start this batch</button>
+  </div>
+
+  @if (data.recipe.summary) {
+    <p class="mt-4 max-w-3xl text-sm leading-relaxed text-stone-300">{{ data.recipe.summary }}</p>
+  }
+
+  <!-- Key numbers -->
+  <section class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Recipe facts">
+    <div class="panel">
+      <p class="panel-title">Duration</p>
+      <p class="mt-1 text-2xl font-semibold text-amber-400">{{ data.recipe.totalDurationDays }}</p>
+      <p class="text-xs text-stone-500">days total</p>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Yield</p>
+      <p class="mt-1 text-sm font-medium">
+        @if (data.recipe.yieldAmount) { {{ data.recipe.yieldAmount }} {{ data.recipe.yieldUnit }} } @else { — }
+      </p>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Brine</p>
+      <p class="mt-1 text-sm font-medium">
+        @if (data.recipe.salinityPercent) { {{ data.recipe.salinityPercent }}% salt } @else { — }
+      </p>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Hydration</p>
+      <p class="mt-1 text-sm font-medium">
+        @if (data.recipe.hydrationPercent) { {{ data.recipe.hydrationPercent }}% } @else { — }
+      </p>
+    </div>
+  </section>
+
+  <div class="mt-4 grid gap-4 lg:grid-cols-3">
+
+    <!-- Ingredients -->
+    <section class="panel lg:col-span-1" aria-label="Ingredients">
+      <h2 class="panel-title">Ingredients</h2>
+
+      @if (data.ingredients.length === 0) {
+        <p class="mt-3 text-sm text-stone-500">No ingredients listed.</p>
+      } @else {
+        <ul class="mt-3 divide-y divide-stone-800">
+          @for (ingredient of data.ingredients; track ingredient.id) {
+            <li class="py-2">
+              <div class="flex items-baseline justify-between gap-3">
+                <span class="text-sm">{{ ingredient.name }}</span>
+                @if (ingredient.quantity) {
+                  <span class="shrink-0 text-sm font-medium text-amber-300">
+                    {{ ingredient.quantity }} {{ ingredient.unit }}
+                  </span>
+                }
+              </div>
+              @if (ingredient.note) {
+                <p class="mt-0.5 text-xs text-stone-500">{{ ingredient.note }}</p>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <!-- Method -->
+    <section class="panel lg:col-span-2" aria-label="Method">
+      <h2 class="panel-title">Method</h2>
+
+      <ol class="mt-3 space-y-3">
+        @for (step of data.steps; track step.id) {
+          <li class="rounded-lg border border-stone-800 p-3">
+            <div class="flex items-start justify-between gap-3">
+              <h3 class="text-sm font-medium">{{ step.position }}. {{ step.title }}</h3>
+              <div class="flex shrink-0 items-center gap-2">
+                <span class="chip bg-stone-800 text-stone-400">{{ humanise(step.phase) }}</span>
+                @if (step.durationDays > 0) {
+                  <span class="chip bg-stone-800 text-stone-300">{{ step.durationDays }} d</span>
+                }
+              </div>
+            </div>
+            <p class="mt-2 text-sm leading-relaxed text-stone-400">{{ step.instruction }}</p>
+          </li>
+        }
+      </ol>
+    </section>
+  </div>
+
+  @if (startOpen()) {
+    <app-batch-form [initialRecipeId]="data.recipe.id"
+                    (closed)="startOpen.set(false)"
+                    (created)="onBatchCreated($event)" />
+  }
+}

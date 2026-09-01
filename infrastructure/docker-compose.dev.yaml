@@ -1,0 +1,20 @@
+# Development overlay: same images as the production stack, but the API runs under the `dev` profile
+# so Flyway also applies `classpath:/migrations-seed` - the recipe library and the demo batches,
+# cultures, measurements and journal entries.
+#
+# This file is NOT named docker-compose.override.yaml on purpose: an override file is picked up
+# automatically, which would make a seeded database the accidental default.
+#
+#   docker compose -f docker-compose.yaml -f docker-compose.dev.yaml up --build
+#
+# Switching an existing database from prod to dev works: every seed migration has a version later
+# than every baseline one, so Flyway applies them in order rather than out of order.
+
+services:
+  app-rest:
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+
+  scheduler:
+    environment:
+      SPRING_PROFILES_ACTIVE: dev

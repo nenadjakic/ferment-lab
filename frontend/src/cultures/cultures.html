@@ -1,0 +1,235 @@
+<div class="flex flex-wrap items-end justify-between gap-3">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight">Culture library</h1>
+    <p class="mt-1 text-sm text-stone-400">
+      SCOBYs, starters and grains, with their care log and their family tree.
+    </p>
+  </div>
+
+  <button type="button" class="btn-primary" (click)="addOpen.set(true)">Add a culture</button>
+</div>
+
+@if (loading()) {
+  <p class="mt-8 text-sm text-stone-400">Loading…</p>
+} @else {
+
+  @if (feedDue().length > 0) {
+    <section class="panel mt-5 border-amber-900/60 bg-amber-950/20" aria-label="Feeds due">
+      <h2 class="text-xs font-semibold uppercase tracking-wider text-amber-400">Feeds due</h2>
+      <ul class="mt-3 divide-y divide-amber-900/40">
+        @for (culture of feedDue(); track culture.id) {
+          <li class="flex items-center gap-3 py-2">
+            <div class="min-w-0 grow">
+              <p class="truncate text-sm font-medium">{{ culture.name }}</p>
+              <p class="text-xs text-stone-400">
+                due {{ culture.nextFeedDueOn | date: 'd MMM' }} · every {{ culture.feedIntervalDays }} d
+              </p>
+            </div>
+            <button type="button" class="btn-primary shrink-0 text-xs" [disabled]="busy()" (click)="feed(culture)">
+              Fed it
+            </button>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  <!-- Library -->
+  <section class="mt-5" aria-label="Cultures">
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-stone-400">Library</h2>
+
+    @if (cultures().length === 0) {
+      <div class="panel text-sm text-stone-400">The library is empty.</div>
+    } @else {
+      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        @for (culture of cultures(); track culture.id) {
+          <article class="panel flex flex-col" [class.opacity-60]="!culture.active">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <h3 class="truncate font-medium">{{ culture.name }}</h3>
+                <p class="mt-0.5 text-xs text-stone-500">
+                  {{ humanise(culture.kind) }} · {{ culture.fermentType.name }} · gen {{ culture.generation }}
+                </p>
+              </div>
+              <span class="chip shrink-0" [class]="healthClass[culture.health]">{{ humanise(culture.health) }}</span>
+            </div>
+
+            @if (culture.flavorProfile) {
+              <p class="mt-2 text-xs italic text-stone-400">"{{ culture.flavorProfile }}"</p>
+            }
+
+            <dl class="mt-3 space-y-1 text-xs text-stone-400">
+              @if (culture.parentName) {
+                <div class="flex gap-1"><dt>Split from</dt><dd class="text-stone-200">{{ culture.parentName }}</dd></div>
+              }
+              @if (culture.childCount > 0) {
+                <div class="flex gap-1"><dt>Descendants</dt><dd class="text-stone-200">{{ culture.childCount }}</dd></div>
+              }
+              <div class="flex gap-1">
+                <dt>Acquired</dt><dd class="text-stone-200">{{ culture.acquiredOn | date: 'd MMM yyyy' }}</dd>
+              </div>
+              @if (culture.feedIntervalDays) {
+                <div class="flex gap-1">
+                  <dt>Next feed</dt>
+                  <dd [class]="culture.feedDue ? 'text-amber-300' : 'text-stone-200'">
+                    {{ culture.nextFeedDueOn | date: 'd MMM' }}
+                  </dd>
+                </div>
+              }
+            </dl>
+
+            <div class="mt-4 flex flex-wrap gap-2">
+              @if (culture.feedIntervalDays) {
+                <button type="button" class="btn-secondary text-xs" [disabled]="busy()" (click)="feed(culture)">
+                  Log feed
+                </button>
+              }
+              <button type="button" class="btn-secondary text-xs" [disabled]="busy() || !culture.active"
+                      (click)="openSplit(culture)">Split</button>
+              <button type="button" class="btn-ghost text-xs" (click)="select(culture)">Care log</button>
+              <button type="button" class="btn-ghost text-xs" [disabled]="busy()" (click)="retire(culture)">
+                {{ culture.active ? 'Retire' : 'Reactivate' }}
+              </button>
+            </div>
+          </article>
+        }
+      </div>
+    }
+  </section>
+
+  <!-- Family trees -->
+  @if (tree().length > 0) {
+    <section class="panel mt-5" aria-label="Family trees">
+      <h2 class="panel-title">Family trees</h2>
+      <p class="mt-1 text-xs text-stone-500">Every generation split off a culture, oldest on the left.</p>
+      <app-chart [option]="treeOption()" [height]="treeHeight()" ariaLabel="Culture family trees" />
+    </section>
+  }
+
+  <!-- Care log -->
+  @if (selected(); as culture) {
+    <div class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4"
+         role="dialog" aria-modal="true" aria-labelledby="care-title">
+      <div class="my-8 w-full max-w-lg rounded-xl border border-stone-800 bg-stone-900">
+        <div class="flex items-center justify-between border-b border-stone-800 px-5 py-4">
+          <h2 id="care-title" class="text-lg font-semibold">{{ culture.name }} · care log</h2>
+          <button type="button" class="btn-ghost" aria-label="Close" (click)="closeDetail()">&times;</button>
+        </div>
+
+        <div class="p-5">
+          @if (culture.notes) {
+            <p class="mb-4 text-sm text-stone-400">{{ culture.notes }}</p>
+          }
+
+          @if (feedings().length === 0) {
+            <p class="text-sm text-stone-500">No feedings logged.</p>
+          } @else {
+            <ul class="divide-y divide-stone-800">
+              @for (feeding of feedings(); track feeding.id) {
+                <li class="flex items-baseline justify-between gap-3 py-2 text-sm">
+                  <span>{{ feeding.fedAt | date: 'd MMM yyyy, HH:mm' }}</span>
+                  <span class="text-stone-400">
+                    @if (feeding.amount) { {{ feeding.amount }} {{ feeding.unit }} } @else { fed }
+                  </span>
+                </li>
+                @if (feeding.note) {
+                  <li class="pb-2 text-xs text-stone-500">{{ feeding.note }}</li>
+                }
+              }
+            </ul>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Split -->
+  @if (splitOpen()) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+         role="dialog" aria-modal="true" aria-labelledby="split-title">
+      <div class="w-full max-w-md rounded-xl border border-stone-800 bg-stone-900 p-5">
+        <h2 id="split-title" class="text-lg font-semibold">Split culture</h2>
+        <p class="mt-1 text-sm text-stone-400">
+          Creates a child one generation down, inheriting style, kind and feed rhythm.
+        </p>
+
+        <form class="mt-4 grid gap-3" (ngSubmit)="split(); $event.preventDefault()">
+          <div>
+            <label class="field-label" for="sp-name">Name</label>
+            <input id="sp-name" class="field" name="splitName" [(ngModel)]="splitName" required maxlength="120">
+          </div>
+          <div>
+            <label class="field-label" for="sp-notes">Notes</label>
+            <textarea id="sp-notes" class="field" rows="3" name="splitNotes" [(ngModel)]="splitNotes"
+                      maxlength="2000"></textarea>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button type="button" class="btn-secondary" (click)="splitOpen.set(false)">Cancel</button>
+            <button type="submit" class="btn-primary" [disabled]="busy()">Split</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+
+  <!-- Add -->
+  @if (addOpen()) {
+    <div class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4"
+         role="dialog" aria-modal="true" aria-labelledby="add-culture-title">
+      <div class="my-8 w-full max-w-lg rounded-xl border border-stone-800 bg-stone-900 p-5">
+        <h2 id="add-culture-title" class="text-lg font-semibold">Add a culture</h2>
+
+        <form class="mt-4 grid gap-3 sm:grid-cols-2" (ngSubmit)="add(); $event.preventDefault()">
+          <div class="sm:col-span-2">
+            <label class="field-label" for="nc-name">Name</label>
+            <input id="nc-name" class="field" name="newName" [(ngModel)]="newName" required maxlength="120"
+                   placeholder="Bubbles the SCOBY">
+          </div>
+          <div>
+            <label class="field-label" for="nc-type">Ferment style</label>
+            <select id="nc-type" class="field" name="newFermentTypeId" [(ngModel)]="newFermentTypeId" required>
+              <option value="">Choose…</option>
+              @for (type of fermentTypes(); track type.id) {
+                <option [value]="type.id">{{ type.name }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="nc-kind">Kind</label>
+            <select id="nc-kind" class="field" name="newKind" [(ngModel)]="newKind">
+              @for (kind of kinds; track kind) {
+                <option [value]="kind">{{ humanise(kind) }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="nc-health">Health</label>
+            <select id="nc-health" class="field" name="newHealth" [(ngModel)]="newHealth">
+              @for (health of healths; track health) {
+                <option [value]="health">{{ humanise(health) }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="nc-feed">Feed every (days)</label>
+            <input id="nc-feed" type="number" min="1" class="field" name="newFeedInterval"
+                   [(ngModel)]="newFeedInterval" placeholder="Leave blank if not fed">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="field-label" for="nc-flavour">Flavour profile</label>
+            <input id="nc-flavour" class="field" name="newFlavour" [(ngModel)]="newFlavour" maxlength="255">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="field-label" for="nc-notes">Notes</label>
+            <textarea id="nc-notes" class="field" rows="3" name="newNotes" [(ngModel)]="newNotes"
+                      maxlength="2000"></textarea>
+          </div>
+          <div class="flex justify-end gap-2 sm:col-span-2">
+            <button type="button" class="btn-secondary" (click)="addOpen.set(false)">Cancel</button>
+            <button type="submit" class="btn-primary" [disabled]="busy()">Add culture</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+}

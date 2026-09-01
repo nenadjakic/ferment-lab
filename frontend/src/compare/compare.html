@@ -1,0 +1,126 @@
+<div>
+  <h1 class="text-2xl font-semibold tracking-tight">Compare batches</h1>
+  <p class="mt-1 text-sm text-stone-400">
+    Overlay two to six batches by day, not by date, and see what made one better than another.
+  </p>
+</div>
+
+@if (loading()) {
+  <p class="mt-8 text-sm text-stone-400">Loading…</p>
+} @else {
+
+  <!-- Metric picker -->
+  <section class="panel mt-5" aria-label="Metrics">
+    <h2 class="panel-title">Metrics</h2>
+    <div class="mt-3 flex flex-wrap gap-2">
+      @for (metric of metricTypes; track metric) {
+        <button type="button"
+                class="chip border transition-colors"
+                [class]="isMetricSelected(metric)
+                  ? 'border-amber-500 bg-amber-500/15 text-amber-300'
+                  : 'border-stone-700 bg-stone-800 text-stone-400 hover:text-stone-200'"
+                [attr.aria-pressed]="isMetricSelected(metric)"
+                (click)="toggleMetric(metric)">
+          {{ metricLabel[metric] }}
+        </button>
+      }
+    </div>
+  </section>
+
+  <!-- Batch picker -->
+  <section class="panel mt-4" aria-label="Batches">
+    <div class="flex items-center justify-between">
+      <h2 class="panel-title">Batches ({{ selectedIds().length }} selected)</h2>
+      @if (selectedIds().length > 0) {
+        <button type="button" class="text-xs text-amber-400 hover:underline" (click)="clear()">Clear</button>
+      }
+    </div>
+
+    @if (candidates().length === 0) {
+      <p class="mt-3 text-sm text-stone-500">No batches to compare yet.</p>
+    } @else {
+      <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        @for (batch of candidates(); track batch.id) {
+          <button type="button"
+                  class="flex items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors"
+                  [class]="isSelected(batch.id)
+                    ? 'border-amber-500 bg-amber-500/10'
+                    : 'border-stone-800 bg-stone-950/40 hover:border-stone-700'"
+                  [attr.aria-pressed]="isSelected(batch.id)"
+                  (click)="toggleBatch(batch.id)">
+            <span class="mt-0.5 grid size-4 shrink-0 place-items-center rounded border text-[10px]"
+                  [class]="isSelected(batch.id) ? 'border-amber-500 bg-amber-500 text-stone-950' : 'border-stone-600'"
+                  aria-hidden="true">
+              {{ isSelected(batch.id) ? '✓' : '' }}
+            </span>
+            <span class="min-w-0">
+              <span class="block truncate text-sm font-medium">{{ batch.name }}</span>
+              <span class="block truncate text-xs text-stone-500">
+                {{ batch.code }} · {{ batch.fermentType.name }} · {{ batch.startedOn | date: 'd MMM yyyy' }}
+              </span>
+            </span>
+          </button>
+        }
+      </div>
+    }
+
+    <button type="button" class="btn-primary mt-4" [disabled]="!canCompare() || comparing()" (click)="compare()">
+      {{ comparing() ? 'Comparing…' : 'Compare' }}
+    </button>
+  </section>
+
+  <!-- Results -->
+  @if (comparison(); as result) {
+
+    <!-- Outcome table, so the curves have context -->
+    <section class="panel mt-4 overflow-x-auto" aria-label="Compared batches">
+      <h2 class="panel-title">Selected batches</h2>
+      <table class="table-base mt-3">
+        <thead>
+          <tr>
+            <th scope="col">Batch</th>
+            <th scope="col">Style</th>
+            <th scope="col">Started</th>
+            <th scope="col">Days</th>
+            <th scope="col">Rating</th>
+            <th scope="col">Outcome</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (batch of result.batches; track batch.batchId) {
+            <tr>
+              <td>
+                <a [routerLink]="['/batches', batch.batchId]" class="text-amber-400 hover:underline">
+                  {{ batch.code }}
+                </a>
+                <span class="ml-2 text-stone-400">{{ batch.name }}</span>
+              </td>
+              <td>{{ batch.fermentTypeName }}</td>
+              <td>{{ batch.startedOn | date: 'd MMM yyyy' }}</td>
+              <td>{{ batch.dayCount }}</td>
+              <td>{{ batch.rating ? batch.rating + '/5' : '—' }}</td>
+              <td>{{ batch.outcome ? humanise(batch.outcome) : '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </section>
+
+    @if (charts().length === 0) {
+      <div class="panel mt-4 text-sm text-stone-400">
+        None of the selected batches has enough readings for the chosen metrics.
+      </div>
+    } @else {
+      <div class="mt-4 grid gap-3 xl:grid-cols-2">
+        @for (chart of charts(); track chart.metric) {
+          <div class="panel">
+            <h3 class="text-sm font-medium">{{ metricLabel[chart.metric] }} by day</h3>
+            <app-chart [option]="chart.option"
+                       [height]="300"
+                       [ariaLabel]="metricLabel[chart.metric] + ' compared across batches by day'" />
+          </div>
+        }
+      </div>
+    }
+  }
+}

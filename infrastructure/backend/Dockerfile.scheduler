@@ -1,0 +1,28 @@
+# Build context is the repository root so the whole Gradle build can be copied in one layer.
+FROM gradle:9.2.0-jdk21 AS build
+WORKDIR /workspace
+
+COPY backend/settings.gradle.kts backend/build.gradle.kts ./
+COPY backend/gradle ./gradle
+COPY backend/data/build.gradle.kts ./data/
+COPY backend/common/build.gradle.kts ./common/
+COPY backend/service/build.gradle.kts ./service/
+COPY backend/app-rest/build.gradle.kts ./app-rest/
+COPY backend/scheduler/build.gradle.kts ./scheduler/
+RUN gradle --no-daemon :scheduler:dependencies --configuration runtimeClasspath > /dev/null 2>&1 || true
+
+COPY backend/ ./
+RUN gradle --no-daemon --console=plain :scheduler:bootJar -x test
+
+FROM eclipse-temurin:21-jre AS runtime
+WORKDIR /app
+
+RUN groupadd --system --gid 1001 fermentlab \
+    && useradd --system --uid 1001 --gid fermentlab fermentlab
+
+COPY --from=build /workspace/scheduler/build/libs/*.jar app.jar
+RUN chown -R fermentlab:fermentlab /app
+
+USER fermentlab
+EXPOSE 8081
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

@@ -1,0 +1,11 @@
+/**/build/
+/**/.gradle/
+/**/.idea/
+
+/**/node_modules/
+/**/.vscode/
+/**/dist/
+/**/out-tsc/
+/**/.angular/
+
+build.log

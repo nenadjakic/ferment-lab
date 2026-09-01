@@ -1,0 +1,94 @@
+name: ferment-lab
+
+services:
+  postgres:
+    image: postgres:17.5-alpine
+    container_name: ferment-lab-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - ferment-lab
+
+  # REST API. Owns the Flyway migrations, so it must come up before the scheduler.
+  app-rest:
+    build:
+      context: ..
+      dockerfile: infrastructure/backend/Dockerfile.app-rest
+    container_name: ferment-lab-app-rest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # This stack is a production deployment: schema and reference data only, no demo data.
+      # Use docker-compose.dev.yaml to bring up a seeded stack instead.
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      FERMENTLAB_CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=70
+    ports:
+      - "${APP_REST_PORT}:8080"
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q -O - http://localhost:8080/actuator/health | grep -q UP" ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+    networks:
+      - ferment-lab
+
+  # Background jobs: milestone reminders, over-fermentation detection, culture feed reminders.
+  scheduler:
+    build:
+      context: ..
+      dockerfile: infrastructure/backend/Dockerfile.scheduler
+    container_name: ferment-lab-scheduler
+    restart: unless-stopped
+    depends_on:
+      app-rest:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      FERMENTLAB_SCHEDULER_CRON: ${SCHEDULER_CRON}
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=70
+    ports:
+      - "${SCHEDULER_PORT}:8081"
+    networks:
+      - ferment-lab
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: infrastructure/frontend/Dockerfile
+    container_name: ferment-lab-frontend
+    restart: unless-stopped
+    depends_on:
+      - app-rest
+    ports:
+      - "${FRONTEND_PORT}:80"
+    networks:
+      - ferment-lab
+
+volumes:
+  postgres-data:
+
+networks:
+  ferment-lab:
+    driver: bridge
