@@ -27,6 +27,10 @@ export class RecipeService {
     return this.http.post<RecipeDetail>(this.url, request);
   }
 
+  update(id: string, request: RecipeAddRequest): Observable<RecipeDetail> {
+    return this.http.put<RecipeDetail>(`${this.url}/${id}`, request);
+  }
+
   delete(id: string): Observable<void> {
     return this.http.delete<void>(`${this.url}/${id}`);
   }

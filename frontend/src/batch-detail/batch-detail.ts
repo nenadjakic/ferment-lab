@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
@@ -42,7 +42,7 @@ import { ToastService } from '../shared/toast.service';
   imports: [FormsModule, DatePipe, DecimalPipe, RouterLink, ChartComponent],
   templateUrl: './batch-detail.html'
 })
-export class BatchDetailComponent {
+export class BatchDetailComponent implements OnInit {
   /** Bound from the `:id` route parameter through `withComponentInputBinding()`. */
   readonly id = input.required<string>();
 
@@ -95,8 +95,9 @@ export class BatchDetailComponent {
       .map((series) => ({ series, option: this.buildOption(series) }))
   );
 
-  constructor() {
-    // `id` is a signal input, so re-navigating between batches reloads without recreating the page.
+  // Required route inputs are only populated after construction, so the first load waits for
+  // `ngOnInit`. `id` is a signal input, so re-navigating between batches reloads the page in place.
+  ngOnInit(): void {
     this.load();
   }
 

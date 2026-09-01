@@ -45,6 +45,7 @@ export class CulturesComponent {
 
   protected readonly addOpen = signal(false);
   protected readonly splitOpen = signal(false);
+  protected readonly editOpen = signal(false);
 
   protected readonly healthClass = CULTURE_HEALTH_CLASS;
   protected readonly kinds = CULTURE_KINDS;
@@ -64,6 +65,15 @@ export class CulturesComponent {
   // Split form
   protected splitName = '';
   protected splitNotes = '';
+
+  // Edit form. Lineage and ferment style are immutable, so only the mutable fields are offered.
+  protected readonly editing = signal<Culture | null>(null);
+  protected editName = '';
+  protected editHealth: CultureHealth = 'HEALTHY';
+  protected editFeedInterval: number | null = null;
+  protected editFlavour = '';
+  protected editNotes = '';
+  protected editActive = true;
 
   /** Cultures whose next feed is today or overdue. */
   protected readonly feedDue = computed(() => this.cultures().filter((culture) => culture.feedDue));
@@ -137,6 +147,61 @@ export class CulturesComponent {
     this.splitName = `${culture.name} (gen ${culture.generation + 1})`;
     this.splitNotes = '';
     this.splitOpen.set(true);
+  }
+
+  protected openEdit(culture: Culture): void {
+    this.editing.set(culture);
+    this.editName = culture.name;
+    this.editHealth = culture.health;
+    this.editFeedInterval = culture.feedIntervalDays ?? null;
+    this.editFlavour = culture.flavorProfile ?? '';
+    this.editNotes = culture.notes ?? '';
+    this.editActive = culture.active;
+    this.editOpen.set(true);
+  }
+
+  protected saveEdit(): void {
+    const culture = this.editing();
+    if (!culture || !this.editName.trim()) {
+      this.toastService.error('A name is required.');
+      return;
+    }
+
+    this.busy.set(true);
+    this.cultureService
+      .update(culture.id, {
+        name: this.editName.trim(),
+        health: this.editHealth,
+        feedIntervalDays: this.editFeedInterval,
+        flavorProfile: this.editFlavour.trim() || null,
+        notes: this.editNotes.trim() || null,
+        active: this.editActive
+      })
+      .subscribe({
+        next: (updated) => {
+          this.editOpen.set(false);
+          this.editing.set(null);
+          this.toastService.success(`${updated.name} updated.`);
+          this.load();
+        },
+        error: () => this.busy.set(false)
+      });
+  }
+
+  protected remove(culture: Culture): void {
+    this.busy.set(true);
+    this.cultureService.delete(culture.id).subscribe({
+      next: () => {
+        this.toastService.success(`${culture.name} deleted.`);
+        // Close the care log if the deleted culture was open there.
+        if (this.selected()?.id === culture.id) {
+          this.closeDetail();
+        }
+        this.load();
+      },
+      // A culture with descendants can't be deleted; the toast surfaces that business rule.
+      error: () => this.busy.set(false)
+    });
   }
 
   protected split(): void {

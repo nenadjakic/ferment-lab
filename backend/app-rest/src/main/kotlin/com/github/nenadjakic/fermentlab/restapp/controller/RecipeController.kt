@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -51,6 +52,18 @@ class RecipeController(
     )
     fun add(@Valid @RequestBody request: RecipeAddRequest): ResponseEntity<RecipeDetailResponse> =
         ResponseEntity.status(HttpStatus.CREATED).body(recipeService.add(request))
+
+    @PutMapping("/{id}")
+    @Operation(
+        operationId = "updateRecipe",
+        summary = "Update a recipe, replacing its ingredient list and method. The total duration is " +
+            "re-derived from the step durations."
+    )
+    fun update(
+        @PathVariable id: UUID,
+        @Valid @RequestBody request: RecipeAddRequest
+    ): ResponseEntity<RecipeDetailResponse> =
+        ResponseEntity.ok(recipeService.update(id, request))
 
     @DeleteMapping("/{id}")
     @Operation(operationId = "deleteRecipe", summary = "Delete a recipe.")

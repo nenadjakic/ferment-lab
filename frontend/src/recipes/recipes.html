@@ -82,5 +82,5 @@
 }
 
 @if (formOpen()) {
-  <app-recipe-form (closed)="formOpen.set(false)" (created)="onCreated($event)" />
+  <app-recipe-form (closed)="formOpen.set(false)" (saved)="onCreated($event)" />
 }

@@ -4,7 +4,7 @@
      aria-labelledby="recipe-form-title">
   <div class="my-8 w-full max-w-3xl rounded-xl border border-stone-800 bg-stone-900 shadow-2xl">
     <div class="flex items-center justify-between border-b border-stone-800 px-5 py-4">
-      <h2 id="recipe-form-title" class="text-lg font-semibold">New recipe</h2>
+      <h2 id="recipe-form-title" class="text-lg font-semibold">{{ editing() ? 'Edit recipe' : 'New recipe' }}</h2>
       <button type="button" class="btn-ghost" aria-label="Close" (click)="closed.emit()">&times;</button>
     </div>
 
@@ -193,7 +193,7 @@
       <div class="mt-5 flex justify-end gap-2">
         <button type="button" class="btn-secondary" (click)="closed.emit()">Cancel</button>
         <button type="submit" class="btn-primary" [disabled]="saving()">
-          {{ saving() ? 'Saving…' : 'Create recipe' }}
+          {{ saving() ? 'Saving…' : (editing() ? 'Save changes' : 'Create recipe') }}
         </button>
       </div>
     </form>

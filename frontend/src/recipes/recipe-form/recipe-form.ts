@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { FermentTypeService } from '../../app/core/api/ferment-type.service';
@@ -7,6 +7,7 @@ import {
   Difficulty,
   FermentType,
   RecipeAddRequest,
+  RecipeDetail,
   RecipeIngredientRequest,
   RecipeStepRequest,
   StagePhase
@@ -15,10 +16,12 @@ import { DIFFICULTIES, STAGE_PHASES, UNITS, humanise } from '../../shared/labels
 import { ToastService } from '../../shared/toast.service';
 
 /**
- * Modal for creating a recipe, with its ingredient list and step by step method.
+ * Modal for creating or editing a recipe, with its ingredient list and step by step method.
  *
  * Ordering follows the row order, and the recipe's total duration is summed from the step durations
- * by the backend, so it is shown here as a read-only running total rather than an input.
+ * by the backend, so it is shown here as a read-only running total rather than an input. Passing an
+ * existing [recipe] switches the form into edit mode: the fields are pre-filled and submitting sends
+ * a `PUT` that replaces the recipe in full rather than a `POST`.
  */
 @Component({
   selector: 'app-recipe-form',
@@ -26,9 +29,13 @@ import { ToastService } from '../../shared/toast.service';
   imports: [FormsModule],
   templateUrl: './recipe-form.html'
 })
-export class RecipeFormComponent {
+export class RecipeFormComponent implements OnInit {
+  /** When set, the form edits this recipe instead of creating a new one. */
+  readonly recipe = input<RecipeDetail | null>(null);
+
   readonly closed = output<void>();
-  readonly created = output<string>();
+  /** Emits the id of the created or updated recipe. */
+  readonly saved = output<string>();
 
   private readonly recipeService = inject(RecipeService);
   private readonly fermentTypeService = inject(FermentTypeService);
@@ -36,6 +43,8 @@ export class RecipeFormComponent {
 
   protected readonly fermentTypes = signal<FermentType[]>([]);
   protected readonly saving = signal(false);
+
+  protected readonly editing = computed(() => this.recipe() !== null);
 
   protected readonly difficulties = DIFFICULTIES;
   protected readonly phases = STAGE_PHASES;
@@ -67,6 +76,51 @@ export class RecipeFormComponent {
 
   constructor() {
     this.fermentTypeService.findAll().subscribe((types) => this.fermentTypes.set(types));
+  }
+
+  // The `recipe` input is only populated after construction, so the form is pre-filled here.
+  ngOnInit(): void {
+    const detail = this.recipe();
+    if (detail) {
+      this.prefill(detail);
+    }
+  }
+
+  /** Copies an existing recipe's values onto the plain form fields for editing. */
+  private prefill(detail: RecipeDetail): void {
+    const r = detail.recipe;
+    this.name = r.name;
+    this.fermentTypeId = r.fermentType.id;
+    this.difficulty = r.difficulty;
+    this.summary = r.summary ?? '';
+    this.yieldAmount = r.yieldAmount ?? null;
+    this.yieldUnit = r.yieldUnit ?? 'L';
+    this.salinityPercent = r.salinityPercent ?? null;
+    this.hydrationPercent = r.hydrationPercent ?? null;
+    this.source = r.source ?? '';
+    this.featured = r.featured;
+
+    this.ingredients.set(
+      detail.ingredients.length > 0
+        ? detail.ingredients.map((ingredient) => ({
+            name: ingredient.name,
+            quantity: ingredient.quantity ?? null,
+            unit: ingredient.unit ?? 'g',
+            note: ingredient.note ?? null
+          }))
+        : [RecipeFormComponent.blankIngredient()]
+    );
+
+    this.steps.set(
+      detail.steps.length > 0
+        ? detail.steps.map((step) => ({
+            title: step.title,
+            instruction: step.instruction,
+            phase: step.phase,
+            durationDays: step.durationDays
+          }))
+        : [RecipeFormComponent.blankStep()]
+    );
   }
 
   protected addIngredient(): void {
@@ -138,12 +192,19 @@ export class RecipeFormComponent {
       steps
     };
 
+    const existing = this.recipe();
+    const save$ = existing
+      ? this.recipeService.update(existing.recipe.id, request)
+      : this.recipeService.add(request);
+
     this.saving.set(true);
-    this.recipeService.add(request).subscribe({
+    save$.subscribe({
       next: (detail) => {
         this.saving.set(false);
-        this.toastService.success(`Recipe "${detail.recipe.name}" created.`);
-        this.created.emit(detail.recipe.id);
+        this.toastService.success(
+          existing ? `Recipe "${detail.recipe.name}" updated.` : `Recipe "${detail.recipe.name}" created.`
+        );
+        this.saved.emit(detail.recipe.id);
       },
       error: () => this.saving.set(false)
     });

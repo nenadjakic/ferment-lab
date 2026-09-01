@@ -61,15 +61,13 @@ class RecipeService(
      */
     @Transactional
     fun add(request: RecipeAddRequest): RecipeDetailResponse {
-        val totalDuration = request.steps.sumOf { it.durationDays }.coerceAtLeast(1)
-
         val recipe = recipeRepository.save(
             Recipe(
                 name = request.name,
                 fermentType = fermentTypeService.getEntity(request.fermentTypeId),
                 difficulty = request.difficulty,
                 summary = request.summary,
-                totalDurationDays = totalDuration,
+                totalDurationDays = totalDurationOf(request),
                 yieldAmount = request.yieldAmount,
                 yieldUnit = request.yieldUnit,
                 salinityPercent = request.salinityPercent,
@@ -79,6 +77,64 @@ class RecipeService(
             )
         )
 
+        replaceIngredientsAndSteps(recipe, request)
+
+        return findById(requireNotNull(recipe.id))
+    }
+
+    /**
+     * Replaces a recipe in full: its basics, and its whole ingredient list and method. The list and
+     * method are swapped out rather than diffed row by row, which keeps the stored ordering (the
+     * `ordinal` column) a straight reflection of the submitted order, and the total duration is
+     * re-derived from the new steps just as it is on creation.
+     */
+    @Transactional
+    fun update(id: UUID, request: RecipeAddRequest): RecipeDetailResponse {
+        val recipe = getEntity(id).apply {
+            name = request.name
+            fermentType = fermentTypeService.getEntity(request.fermentTypeId)
+            difficulty = request.difficulty
+            summary = request.summary
+            totalDurationDays = totalDurationOf(request)
+            yieldAmount = request.yieldAmount
+            yieldUnit = request.yieldUnit
+            salinityPercent = request.salinityPercent
+            hydrationPercent = request.hydrationPercent
+            source = request.source
+            featured = request.featured
+        }
+        recipeRepository.save(recipe)
+
+        // The two child tables carry a UNIQUE (recipe_id, ordinal) constraint, and the replacement
+        // rows reuse the same ordinals 1..N. Flush the deletes so they reach the database before the
+        // new inserts, otherwise the re-inserted ordinals collide with the rows still pending removal.
+        recipeIngredientRepository.deleteAllByRecipeId(id)
+        recipeStepRepository.deleteAllByRecipeId(id)
+        recipeIngredientRepository.flush()
+        recipeStepRepository.flush()
+        replaceIngredientsAndSteps(recipe, request)
+
+        return findById(id)
+    }
+
+    @Transactional
+    fun delete(id: UUID) {
+        // recipe_ingredients and recipe_steps are removed by the ON DELETE CASCADE foreign keys.
+        recipeRepository.delete(getEntity(id))
+    }
+
+    /**
+     * Total duration is the sum of the step durations, floored at one day so a recipe always spans
+     * at least a day even when every step is an immediate action.
+     */
+    private fun totalDurationOf(request: RecipeAddRequest): Int =
+        request.steps.sumOf { it.durationDays }.coerceAtLeast(1)
+
+    /**
+     * Writes the ingredient list and method for a recipe, numbering both from 1 in submitted order.
+     * Callers that are replacing existing children must clear them first.
+     */
+    private fun replaceIngredientsAndSteps(recipe: Recipe, request: RecipeAddRequest) {
         recipeIngredientRepository.saveAll(
             request.ingredients.mapIndexed { index, ingredient ->
                 RecipeIngredient(
@@ -104,13 +160,6 @@ class RecipeService(
                 )
             }
         )
-
-        return findById(requireNotNull(recipe.id))
-    }
-
-    @Transactional
-    fun delete(id: UUID) {
-        recipeRepository.delete(getEntity(id))
     }
 
     fun getEntity(id: UUID): Recipe =

@@ -87,9 +87,14 @@
               <button type="button" class="btn-secondary text-xs" [disabled]="busy() || !culture.active"
                       (click)="openSplit(culture)">Split</button>
               <button type="button" class="btn-ghost text-xs" (click)="select(culture)">Care log</button>
+              <button type="button" class="btn-ghost text-xs" [disabled]="busy()" (click)="openEdit(culture)">
+                Edit
+              </button>
               <button type="button" class="btn-ghost text-xs" [disabled]="busy()" (click)="retire(culture)">
                 {{ culture.active ? 'Retire' : 'Reactivate' }}
               </button>
+              <button type="button" class="btn-ghost text-xs text-red-400 hover:text-red-300"
+                      [disabled]="busy()" (click)="remove(culture)">Delete</button>
             </div>
           </article>
         }
@@ -166,6 +171,56 @@
           <div class="flex justify-end gap-2">
             <button type="button" class="btn-secondary" (click)="splitOpen.set(false)">Cancel</button>
             <button type="submit" class="btn-primary" [disabled]="busy()">Split</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+
+  <!-- Edit -->
+  @if (editOpen()) {
+    <div class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4"
+         role="dialog" aria-modal="true" aria-labelledby="edit-culture-title">
+      <div class="my-8 w-full max-w-lg rounded-xl border border-stone-800 bg-stone-900 p-5">
+        <h2 id="edit-culture-title" class="text-lg font-semibold">Edit culture</h2>
+        <p class="mt-1 text-sm text-stone-400">Ferment style, kind and lineage stay as they were.</p>
+
+        <form class="mt-4 grid gap-3 sm:grid-cols-2" (ngSubmit)="saveEdit(); $event.preventDefault()">
+          <div class="sm:col-span-2">
+            <label class="field-label" for="ec-name">Name</label>
+            <input id="ec-name" class="field" name="editName" [(ngModel)]="editName" required maxlength="120">
+          </div>
+          <div>
+            <label class="field-label" for="ec-health">Health</label>
+            <select id="ec-health" class="field" name="editHealth" [(ngModel)]="editHealth">
+              @for (health of healths; track health) {
+                <option [value]="health">{{ humanise(health) }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="ec-feed">Feed every (days)</label>
+            <input id="ec-feed" type="number" min="1" class="field" name="editFeedInterval"
+                   [(ngModel)]="editFeedInterval" placeholder="Leave blank if not fed">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="field-label" for="ec-flavour">Flavour profile</label>
+            <input id="ec-flavour" class="field" name="editFlavour" [(ngModel)]="editFlavour" maxlength="255">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="field-label" for="ec-notes">Notes</label>
+            <textarea id="ec-notes" class="field" rows="3" name="editNotes" [(ngModel)]="editNotes"
+                      maxlength="2000"></textarea>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="flex cursor-pointer items-center gap-2 text-sm text-stone-300">
+              <input type="checkbox" class="size-4 accent-amber-500" name="editActive" [(ngModel)]="editActive">
+              Active
+            </label>
+          </div>
+          <div class="flex justify-end gap-2 sm:col-span-2">
+            <button type="button" class="btn-secondary" (click)="editOpen.set(false)">Cancel</button>
+            <button type="submit" class="btn-primary" [disabled]="busy()">Save changes</button>
           </div>
         </form>
       </div>

@@ -13,7 +13,12 @@
       </p>
     </div>
 
-    <button type="button" class="btn-primary" (click)="startOpen.set(true)">Start this batch</button>
+    <div class="flex shrink-0 flex-wrap gap-2">
+      <button type="button" class="btn-secondary" (click)="editOpen.set(true)">Edit</button>
+      <button type="button" class="btn-ghost text-red-400 hover:text-red-300"
+              [disabled]="busy()" (click)="deleteRecipe()">Delete</button>
+      <button type="button" class="btn-primary" (click)="startOpen.set(true)">Start this batch</button>
+    </div>
   </div>
 
   @if (data.recipe.summary) {
@@ -103,5 +108,9 @@
     <app-batch-form [initialRecipeId]="data.recipe.id"
                     (closed)="startOpen.set(false)"
                     (created)="onBatchCreated($event)" />
+  }
+
+  @if (editOpen()) {
+    <app-recipe-form [recipe]="data" (closed)="editOpen.set(false)" (saved)="onEdited()" />
   }
 }
