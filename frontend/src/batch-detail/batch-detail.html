@@ -25,6 +25,7 @@
     </div>
 
     <div class="flex flex-wrap gap-2">
+      <button type="button" class="btn-secondary" (click)="print()">Print</button>
       @if (data.batch.status === 'ACTIVE') {
         <button type="button" class="btn-secondary" [disabled]="busy()" (click)="changeStatus('PAUSED')">Pause</button>
       }
