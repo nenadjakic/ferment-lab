@@ -13,6 +13,7 @@ import {
   MetricSeries,
   MetricType
 } from '../app/core/api/models';
+import { PrintService } from '../app/core/print.service';
 import { ChartComponent } from '../shared/chart/chart';
 import {
   CHART_LINE_COLOR,
@@ -49,6 +50,7 @@ export class BatchDetailComponent implements OnInit {
   private readonly batchService = inject(BatchService);
   private readonly toastService = inject(ToastService);
   private readonly router = inject(Router);
+  private readonly printService = inject(PrintService);
 
   protected readonly detail = signal<BatchDetail | null>(null);
   protected readonly loading = signal(true);
@@ -224,6 +226,190 @@ export class BatchDetailComponent implements OnInit {
       },
       error: () => this.busy.set(false)
     });
+  }
+
+  protected print(): void {
+    const data = this.detail();
+
+    if (!data) {
+      return;
+    }
+
+    const batch = data.batch;
+
+    const facts = `
+      <div class="facts">
+        <div class="fact">
+          <div class="fact-label">Status</div>
+          <div class="fact-value">${this.escapeHtml(this.humanise(batch.status))}</div>
+        </div>
+        <div class="fact">
+          <div class="fact-label">Health</div>
+          <div class="fact-value">${this.escapeHtml(this.healthLabel[batch.health])}</div>
+        </div>
+        <div class="fact">
+          <div class="fact-label">Day</div>
+          <div class="fact-value">${batch.dayCount} of ${batch.plannedDurationDays}</div>
+        </div>
+        <div class="fact">
+          <div class="fact-label">Readings</div>
+          <div class="fact-value">${data.measurementCount}</div>
+        </div>
+      </div>
+    `;
+
+    const parameters = `
+      <h2>Batch details</h2>
+      <table>
+        <tbody>
+          <tr><th>Ferment</th><td>${this.escapeHtml(batch.fermentType.name)}</td></tr>
+          ${batch.recipeName ? `<tr><th>Recipe</th><td>${this.escapeHtml(batch.recipeName)}</td></tr>` : ''}
+          ${batch.cultureName ? `<tr><th>Culture</th><td>${this.escapeHtml(batch.cultureName)}</td></tr>` : ''}
+          <tr><th>Started</th><td>${this.formatDate(batch.startedOn)}</td></tr>
+          <tr><th>Planned finish</th><td>${this.formatDate(batch.expectedEndOn)}</td></tr>
+          ${batch.endedOn ? `<tr><th>Ended</th><td>${this.formatDate(batch.endedOn)}</td></tr>` : ''}
+          <tr><th>Container</th><td>${this.escapeHtml(batch.container ?? '—')}</td></tr>
+          <tr>
+            <th>Size</th>
+            <td>${batch.batchSize != null ? this.escapeHtml(batch.batchSize + ' ' + (batch.batchSizeUnit ?? '')) : '—'}</td>
+          </tr>
+          <tr><th>Location</th><td>${this.escapeHtml(batch.location ?? '—')}</td></tr>
+          ${batch.outcome ? `<tr><th>Outcome</th><td>${this.escapeHtml(this.humanise(batch.outcome))}</td></tr>` : ''}
+          ${batch.rating ? `<tr><th>Rating</th><td>${batch.rating}/5</td></tr>` : ''}
+        </tbody>
+      </table>
+    `;
+
+    const alerts = data.alerts.length
+      ? `
+        <h2>Alerts</h2>
+        <table>
+          <thead>
+            <tr><th>Message</th><th>Severity</th><th>Due</th></tr>
+          </thead>
+          <tbody>
+            ${data.alerts
+              .map((alert) => `
+                <tr>
+                  <td>${this.escapeHtml(alert.message)}${alert.acknowledgedAt ? ' <span class="muted">(dismissed)</span>' : ''}</td>
+                  <td>${this.escapeHtml(this.humanise(alert.severity))}</td>
+                  <td>${this.formatDateTime(alert.dueAt)}</td>
+                </tr>
+              `)
+              .join('')}
+          </tbody>
+        </table>
+      `
+      : '';
+
+    const stages = `
+      <h2>Timeline</h2>
+      ${data.stages.length
+        ? data.stages
+            .map((stage) => `
+              <div class="card">
+                <h3>${stage.position}. ${this.escapeHtml(stage.name)}</h3>
+                <div>
+                  <span class="pill">${this.escapeHtml(this.humanise(stage.phase))}</span>
+                  <span class="pill">${this.escapeHtml(this.humanise(stage.status))}</span>
+                  ${stage.plannedDurationDays > 0 ? `<span class="pill">${stage.plannedDurationDays} days</span>` : ''}
+                </div>
+                ${stage.instruction ? `<p>${this.escapeHtml(stage.instruction)}</p>` : ''}
+              </div>
+            `)
+            .join('')
+        : '<p class="muted">This batch has no stages.</p>'}
+    `;
+
+    const readings = data.series.length
+      ? `
+        <h2>Latest readings</h2>
+        <table>
+          <thead>
+            <tr><th>Metric</th><th>Latest</th><th>Readings</th></tr>
+          </thead>
+          <tbody>
+            ${data.series
+              .map((series) => {
+                const last = series.points[series.points.length - 1];
+                return `
+                  <tr>
+                    <td>${this.escapeHtml(this.metricLabel[series.metric])}</td>
+                    <td>${last ? this.escapeHtml(last.value + ' ' + series.unit) : '—'}</td>
+                    <td>${series.points.length}</td>
+                  </tr>
+                `;
+              })
+              .join('')}
+          </tbody>
+        </table>
+      `
+      : '';
+
+    const journal = `
+      <h2>Journal</h2>
+      ${data.events.length
+        ? data.events
+            .map((event) => `
+              <div class="card">
+                <h3>${this.escapeHtml(event.title)}</h3>
+                <div>
+                  <span class="pill">${this.escapeHtml(this.humanise(event.eventType))}</span>
+                  <span class="muted">${this.formatDateTime(event.occurredAt)}</span>
+                </div>
+                ${event.description ? `<p class="note">${this.escapeHtml(event.description)}</p>` : ''}
+              </div>
+            `)
+            .join('')
+        : '<p class="muted">Nothing recorded yet.</p>'}
+    `;
+
+    const notes = data.notes
+      ? `
+        <h2>Notes</h2>
+        <div class="card"><p class="note">${this.escapeHtml(data.notes)}</p></div>
+      `
+      : '';
+
+    const body = `
+      ${facts}
+      ${batch.healthReason ? `<div class="card"><strong>Health note</strong><p>${this.escapeHtml(batch.healthReason)}</p></div>` : ''}
+      ${parameters}
+      ${alerts}
+      ${stages}
+      ${readings}
+      ${journal}
+      ${notes}
+    `;
+
+    this.printService.print(
+      batch.name,
+      `${batch.code} · ${batch.fermentType.name} · Batch`,
+      body
+    );
+  }
+
+  private formatDate(value: string | null | undefined): string {
+    if (!value) {
+      return '—';
+    }
+    return new Date(value).toLocaleDateString();
+  }
+
+  private formatDateTime(value: string | null | undefined): string {
+    if (!value) {
+      return '—';
+    }
+    return new Date(value).toLocaleString();
+  }
+
+  private escapeHtml(value: unknown): string {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   private load(): void {
